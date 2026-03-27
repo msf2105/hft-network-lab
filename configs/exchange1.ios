@@ -1,0 +1,77 @@
+! ============================================================
+! Exchange1 — AS 65001
+! Primary exchange — low MED (10) signals preferred path
+! ============================================================
+!
+version 15.6
+service timestamps debug datetime msec
+service timestamps log datetime msec
+no service password-encryption
+!
+hostname Exchange1
+!
+no aaa new-model
+!
+! ── Interfaces ───────────────────────────────────────────────
+interface Loopback0
+ description Router-ID
+ ip address 1.1.1.1 255.255.255.255
+!
+interface GigabitEthernet0/0
+ description To-ColoPeer-PRIMARY-1ms
+ ip address 10.0.1.1 255.255.255.252
+ ! BFD: 150ms intervals, multiplier 3 = 450ms detection time
+ bfd interval 150 min_rx 150 multiplier 3
+ no bfd echo
+ no shutdown
+!
+! ── BGP ──────────────────────────────────────────────────────
+router bgp 65001
+ bgp router-id 1.1.1.1
+ bgp log-neighbor-changes
+ !
+ neighbor 10.0.1.2 remote-as 65002
+ neighbor 10.0.1.2 description ColoPeer-Jump-Colo
+ neighbor 10.0.1.2 fall-over bfd
+ neighbor 10.0.1.2 timers 3 9
+ !
+ address-family ipv4
+  ! Advertise our exchange market data prefix
+  network 172.16.1.0 mask 255.255.255.0
+  neighbor 10.0.1.2 activate
+  neighbor 10.0.1.2 soft-reconfiguration inbound
+  ! MED=10 tells ColoPeer: prefer us as primary exchange
+  neighbor 10.0.1.2 route-map SET-LOW-MED out
+  neighbor 10.0.1.2 route-map ALLOW-ALL in
+ exit-address-family
+!
+! ── Route-maps ───────────────────────────────────────────────
+! MED=10 signals "primary exchange" to ColoPeer
+! Lower MED = more preferred (when LOCAL_PREF is equal)
+route-map SET-LOW-MED permit 10
+ description Primary exchange signal - low MED
+ set metric 10
+!
+route-map ALLOW-ALL permit 10
+!
+! ── BFD template ─────────────────────────────────────────────
+bfd-template single-hop FAST-BFD
+ interval min-tx 150 min-rx 150 multiplier 3
+!
+! ── Static null-route so prefix is redistributable ───────────
+ip route 172.16.1.0 255.255.255.0 Null0
+!
+! ── Misc ─────────────────────────────────────────────────────
+no ip domain lookup
+no ip http server
+no ip http secure-server
+!
+line con 0
+ exec-timeout 0 0
+ logging synchronous
+line vty 0 4
+ exec-timeout 0 0
+ logging synchronous
+ login
+!
+end
