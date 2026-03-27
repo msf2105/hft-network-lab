@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<lab name="HFT_BGP_Lab" id="62f98058-44db-4aeb-a0a8-5b586277896c" version="1" scripttimeout="300" countdown="0" lock="0" sat="-1" description="HFT Network Lab - Exchange colocation simulation with BGP path selection, BFD fast failover, DPDK kernel bypass, and RDMA. See github.com/YOUR_USERNAME/hft-network-lab for full setup guide." body="">
+  <topology>
+    <nodes>
+      <node id="1" name="Exchange1" type="qemu" template="vios" image="vios-adventerprisek9-m.SPA.159-3.M6" console="telnet" cpu="1" cpulimit="0" ram="512" ethernet="2" uuid="103f655d-61d7-468b-914a-771939b5658f" firstmac="50:00:00:01:00:00" sat="-1" left="80" top="200" icon="Router.png" config="0" delay="0" shutdowntime="5">
+        <interface id="0" name="GigabitEthernet0/0" type="ethernet" network_id="1"/>
+        <interface id="1" name="GigabitEthernet0/1" type="ethernet" network_id="3"/>
+      </node>
+      <node id="2" name="ColoPeer" type="qemu" template="vios" image="vios-adventerprisek9-m.SPA.159-3.M6" console="telnet" cpu="1" cpulimit="0" ram="512" ethernet="2" uuid="4d67b57c-d8af-4c4e-8e12-ceb73ce88add" firstmac="50:00:00:02:00:00" sat="-1" left="370" top="200" icon="Router.png" config="0" delay="0" shutdowntime="5">
+        <interface id="0" name="GigabitEthernet0/0" type="ethernet" network_id="1"/>
+        <interface id="1" name="GigabitEthernet0/1" type="ethernet" network_id="2"/>
+      </node>
+      <node id="3" name="Exchange2" type="qemu" template="vios" image="vios-adventerprisek9-m.SPA.159-3.M6" console="telnet" cpu="1" cpulimit="0" ram="512" ethernet="2" uuid="6cd17242-a274-42cc-ad55-7872e598945d" firstmac="50:00:00:03:00:00" sat="-1" left="660" top="200" icon="Router.png" config="0" delay="0" shutdowntime="5">
+        <interface id="0" name="GigabitEthernet0/0" type="ethernet" network_id="2"/>
+        <interface id="1" name="GigabitEthernet0/1" type="ethernet" network_id="4"/>
+      </node>
+      <node id="4" name="NetEm" type="qemu" template="linux" image="linux-linux-netem" console="telnet" cpu="1" cpulimit="0" ram="128" ethernet="2" uuid="115b0e56-3219-48e9-b978-629ebb00a6b8" firstmac="50:00:00:04:00:00" sat="-1" left="225" top="360" icon="Server.png" config="0" delay="0" shutdowntime="5">
+        <interface id="0" name="eth0" type="ethernet" network_id="1"/>
+        <interface id="1" name="eth1" type="ethernet" network_id="2"/>
+      </node>
+      <node id="5" name="Ubuntu-DPDK" type="qemu" template="linux" image="linux-linux-ubuntu-server-20.04" console="telnet" cpu="2" cpulimit="0" ram="2048" ethernet="2" uuid="853e21b8-0057-4447-ae25-5b3cd35b3dfb" firstmac="50:00:00:05:00:00" sat="-1" left="370" top="380" icon="Server.png" config="0" delay="0" shutdowntime="5">
+        <interface id="0" name="eth0" type="ethernet" network_id="5"/>
+        <interface id="1" name="eth1" type="ethernet" network_id="1"/>
+      </node>
+    </nodes>
+    <networks>
+      <network id="1" type="bridge" name="Net-Exch1-Colo" left="225" top="290" L2="0" expanded="0" visibility="1"/>
+      <network id="2" type="bridge" name="Net-Colo-Exch2" left="515" top="290" L2="0" expanded="0" visibility="1"/>
+      <network id="3" type="bridge" name="Net-Mgmt-Exch1" left="80" top="360" L2="0" expanded="0" visibility="1"/>
+      <network id="4" type="bridge" name="Net-Mgmt-Exch2" left="660" top="360" L2="0" expanded="0" visibility="1"/>
+      <network id="5" type="bridge" name="Net-DPDK-Lab" left="370" top="470" L2="0" expanded="0" visibility="1"/>
+    </networks>
+  </topology>
+  <objects>
+    <configs/>
+  </objects>
+</lab>

@@ -1,0 +1,16 @@
+# EVE-NG generated files
+*.log
+*.bak
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Large binary files — add your own pcap captures
+# captures/*.pcap is gitignored by default
+# Remove this line if you want to commit your capture files
+captures/*.pcap
+
+# Temporary files
+tmp/
+*.tmp
