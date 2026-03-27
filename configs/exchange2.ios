@@ -1,0 +1,74 @@
+! ============================================================
+! Exchange2 — AS 65003
+! Backup exchange — high MED (50) signals secondary path
+! ============================================================
+!
+version 15.6
+service timestamps debug datetime msec
+service timestamps log datetime msec
+no service password-encryption
+!
+hostname Exchange2
+!
+no aaa new-model
+!
+! ── Interfaces ───────────────────────────────────────────────
+interface Loopback0
+ description Router-ID
+ ip address 3.3.3.3 255.255.255.255
+!
+interface GigabitEthernet0/0
+ description To-ColoPeer-BACKUP-5ms
+ ip address 10.0.2.2 255.255.255.252
+ bfd interval 150 min_rx 150 multiplier 3
+ no bfd echo
+ no shutdown
+!
+! ── BGP ──────────────────────────────────────────────────────
+router bgp 65003
+ bgp router-id 3.3.3.3
+ bgp log-neighbor-changes
+ !
+ neighbor 10.0.2.1 remote-as 65002
+ neighbor 10.0.2.1 description ColoPeer-Jump-Colo
+ neighbor 10.0.2.1 fall-over bfd
+ neighbor 10.0.2.1 timers 3 9
+ !
+ address-family ipv4
+  ! Advertise our exchange market data prefix
+  network 172.16.2.0 mask 255.255.255.0
+  neighbor 10.0.2.1 activate
+  neighbor 10.0.2.1 soft-reconfiguration inbound
+  ! MED=50 tells ColoPeer: treat us as backup exchange
+  ! Higher MED = less preferred (when LOCAL_PREF is equal)
+  neighbor 10.0.2.1 route-map SET-HIGH-MED out
+  neighbor 10.0.2.1 route-map ALLOW-ALL in
+ exit-address-family
+!
+! ── Route-maps ───────────────────────────────────────────────
+route-map SET-HIGH-MED permit 10
+ description Backup exchange signal - higher MED
+ set metric 50
+!
+route-map ALLOW-ALL permit 10
+!
+! ── BFD template ─────────────────────────────────────────────
+bfd-template single-hop FAST-BFD
+ interval min-tx 150 min-rx 150 multiplier 3
+!
+ip route 172.16.2.0 255.255.255.0 Null0
+!
+! ── Misc ─────────────────────────────────────────────────────
+no ip domain lookup
+no ip http server
+no ip http secure-server
+!
+line con 0
+ exec-timeout 0 0
+ logging synchronous
+line vty 0 4
+ exec-timeout 0 0
+ logging synchronous
+ login
+!
+end
