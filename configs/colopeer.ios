@@ -1,0 +1,131 @@
+! ============================================================
+! ColoPeer — AS 65002
+! Simulates Jump Trading's co-location server
+! Dual exchange sessions with deterministic path selection
+! ============================================================
+!
+version 15.6
+service timestamps debug datetime msec
+service timestamps log datetime msec
+no service password-encryption
+!
+hostname ColoPeer
+!
+no aaa new-model
+!
+! ── Interfaces ───────────────────────────────────────────────
+interface Loopback0
+ description Router-ID
+ ip address 2.2.2.2 255.255.255.255
+!
+interface GigabitEthernet0/0
+ description To-Exchange1-PRIMARY-LowLatency
+ ip address 10.0.1.2 255.255.255.252
+ ! BFD: 150ms intervals — fastest reliable for QEMU VMs
+ bfd interval 150 min_rx 150 multiplier 3
+ no bfd echo
+ no shutdown
+!
+interface GigabitEthernet0/1
+ description To-Exchange2-BACKUP-HighLatency
+ ip address 10.0.2.1 255.255.255.252
+ bfd interval 150 min_rx 150 multiplier 3
+ no bfd echo
+ no shutdown
+!
+! ── BGP ──────────────────────────────────────────────────────
+router bgp 65002
+ bgp router-id 2.2.2.2
+ bgp log-neighbor-changes
+ ! Enables router-ID as final tiebreaker when all else is equal
+ bgp bestpath compare-routerid
+ !
+ ! ── Exchange1 session (PRIMARY) ──────────────────────────────
+ neighbor 10.0.1.1 remote-as 65001
+ neighbor 10.0.1.1 description Exchange1-Primary-1ms
+ neighbor 10.0.1.1 fall-over bfd
+ neighbor 10.0.1.1 timers 3 9
+ !
+ ! ── Exchange2 session (BACKUP) ───────────────────────────────
+ neighbor 10.0.2.2 remote-as 65003
+ neighbor 10.0.2.2 description Exchange2-Backup-5ms
+ neighbor 10.0.2.2 fall-over bfd
+ neighbor 10.0.2.2 timers 3 9
+ !
+ address-family ipv4
+  ! Our trading server prefix
+  network 192.168.100.0 mask 255.255.255.0
+  !
+  ! Exchange1: LOCAL_PREF 200 = primary (wins BGP best-path)
+  neighbor 10.0.1.1 activate
+  neighbor 10.0.1.1 soft-reconfiguration inbound
+  neighbor 10.0.1.1 route-map PREFER-PRIMARY in
+  neighbor 10.0.1.1 route-map EXPORT-ROUTES out
+  !
+  ! Exchange2: LOCAL_PREF 100 = backup (only used on Exchange1 failure)
+  neighbor 10.0.2.2 activate
+  neighbor 10.0.2.2 soft-reconfiguration inbound
+  neighbor 10.0.2.2 route-map PREFER-BACKUP in
+  neighbor 10.0.2.2 route-map EXPORT-ROUTES out
+ exit-address-family
+!
+! ── Route-maps ───────────────────────────────────────────────
+!
+! PREFER-PRIMARY: Accept only the expected prefix from Exchange1
+! and set LOCAL_PREF 200 to make it the BGP best path.
+! The deny 20 blocks any unexpected prefixes — route leak protection.
+route-map PREFER-PRIMARY permit 10
+ description Primary exchange - accept only expected prefix
+ match ip address prefix-list ACCEPT-EXCHANGE1
+ set local-preference 200
+!
+route-map PREFER-PRIMARY deny 20
+ description Block unexpected prefixes from Exchange1
+!
+! PREFER-BACKUP: Same pattern for Exchange2 with LOCAL_PREF 100.
+route-map PREFER-BACKUP permit 10
+ description Backup exchange - accept only expected prefix
+ match ip address prefix-list ACCEPT-EXCHANGE2
+ set local-preference 100
+!
+route-map PREFER-BACKUP deny 20
+ description Block unexpected prefixes from Exchange2
+!
+route-map EXPORT-ROUTES permit 10
+!
+! ── Prefix lists ─────────────────────────────────────────────
+! Only accept the specific prefixes we expect from each exchange.
+! Anything else is silently dropped — protects against misconfigured
+! exchange routers leaking routes into our trading infrastructure.
+ip prefix-list ACCEPT-EXCHANGE1 seq 5 permit 172.16.1.0/24
+ip prefix-list ACCEPT-EXCHANGE2 seq 5 permit 172.16.2.0/24
+!
+! ── BFD template ─────────────────────────────────────────────
+bfd-template single-hop FAST-BFD
+ interval min-tx 150 min-rx 150 multiplier 3
+!
+ip route 192.168.100.0 255.255.255.0 Null0
+!
+! ── Misc ─────────────────────────────────────────────────────
+no ip domain lookup
+no ip http server
+no ip http secure-server
+!
+! ── Verification commands (reference) ────────────────────────
+! show bgp ipv4 unicast summary
+! show bgp ipv4 unicast
+! show bgp ipv4 unicast 172.16.1.0/24
+! show bfd neighbors
+! show bfd neighbors details
+! show bgp ipv4 unicast neighbors 10.0.1.1 received-routes
+! debug bgp ipv4 unicast events   (live convergence - undebug all to stop)
+!
+line con 0
+ exec-timeout 0 0
+ logging synchronous
+line vty 0 4
+ exec-timeout 0 0
+ logging synchronous
+ login
+!
+end
